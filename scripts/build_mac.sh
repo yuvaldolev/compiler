@@ -24,7 +24,8 @@ COMPILER_FLAGS="-g -fPIC -fpermissive $BUILD_MODE"
 
 # Execute
 $CC $WARNINGS $COMPILER_FLAGS "$SRC_ROOT/build_compiler.c" -o "$INTERMEDIATE_ROOT/build_compiler"
-pushd "$PRJ_ROOT"
+
+pushd "$PRJ_ROOT" >/dev/null
 "$INTERMEDIATE_ROOT/build_compiler"
-popd
+popd >/dev/null
 
