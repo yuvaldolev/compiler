@@ -1,8 +1,9 @@
 [package]
-name = "programming_language"
+name = "compiler"
 version = "0.1.0"
 authors = ["Yuval Dolev <yuvaldolev2@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+clap = { git = "https://github.com/clap-rs/clap/" }
 
