@@ -1,6 +1,0 @@
-#import "LibC"
-
-main :: proc() {
-	printf("Hello World!\n");
-}
-
