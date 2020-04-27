@@ -34,3 +34,7 @@
 # Vim Intermediate Files.
 *.swp
 
+# Project Directories
+.build/
+target/
+
