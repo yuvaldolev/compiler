@@ -18,7 +18,7 @@ pub struct Token<'a> {
     line: usize,
     column: usize,
 
-    // Value.
+    // Value (this might be better implemented using the kind Enum).
     string: &'a str,
     int: u64,
     float: f64,
@@ -57,6 +57,8 @@ pub enum TokenKind {
     StarEq,
     Slash,
     SlashEq,
+    Eq,
+    EqEq,
     Arrow,
     Colon,
     ColonColon,
@@ -267,6 +269,15 @@ impl<'a> Lexer<'a> {
                     }
                 }
 
+                '=' => {
+                    if '=' == self.peek_first() {
+                        self.advance();
+                        result.kind = TokenKind::EqEq;
+                    } else {
+                        result.kind = TokenKind::Eq;
+                    }
+                }
+
                 ':' => {
                     if ':' == self.peek_first() {
                         self.advance();
@@ -293,7 +304,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn peek_nth(&mut self, n: usize) -> char {
-        self.chars.nth(n).unwrap_or(EOF_CHAR)
+        self.chars.clone().nth(n).unwrap_or(EOF_CHAR)
     }
 
     fn advance(&mut self) {
@@ -317,6 +328,10 @@ impl<'a> Lexer<'a> {
 
     fn eat_whitespace(&mut self) {
         while self.peek_first().is_whitespace() {
+            if '\n' == self.peek_first() {
+                self.line += 1;
+                self.column = 0;
+            }
             self.advance();
         }
     }
