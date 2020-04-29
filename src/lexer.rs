@@ -1,20 +1,83 @@
-pub struct Lexer {
-    source: &String,
-    chars: Chars,
+use std::str::Chars;
 
-    index: usize,
+pub struct Lexer<'a> {
+    source: &'a String,
+    chars: Chars<'a>,
+
     line: usize,
     column: usize,
 
-    tokens: Vec<Token>,
+    pub tokens: Vec<Token<'a>>,
 }
 
-pub struct Token {}
+#[derive(Debug)]
+pub struct Token<'a> {
+    kind: TokenKind,
 
-impl Token {}
+    // Location data.
+    line: usize,
+    column: usize,
 
-pub enum TokenKind {}
+    // Value.
+    string: &'a str,
+    int: u64,
+    float: f64,
+}
 
+impl<'a> Token<'a> {
+    fn new() -> Token<'a> {
+        return Token {
+            kind: TokenKind::Uninitialized,
+            line: 0,
+            column: 0,
+            string: "",
+            int: 0,
+            float: 0.0,
+        };
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum TokenKind {
+    // NOTE(ydolev): Operators.
+    Semi,
+    Comma,
+    Dot,
+    OpenParen,
+    CloseParen,
+    OpenBrace,
+    CloseBrace,
+    OpenBracket,
+    CloseBracket,
+    Plus,
+    PlusEq,
+    Minus,
+    MinusEq,
+    Star,
+    StarEq,
+    Slash,
+    SlashEq,
+    Arrow,
+    Colon,
+    ColonColon,
+
+    // NOTE(ydolev): Numbers.
+    Integer,
+    Float,
+
+    // NOTE(ydolev): Keywords.
+    KeywordProc,
+    KeywordIf,
+    KeywordI32,
+
+    Identifier,
+
+    EOF,
+
+    Uninitialized,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 enum Radix {
     Bin = 2,
     Oct = 8,
@@ -24,25 +87,21 @@ enum Radix {
 
 const EOF_CHAR: char = '\0';
 
-impl Lexer {
-    pub fn new(source: &String) -> Lexer {
-        let result = Lexer {
+impl<'a> Lexer<'a> {
+    pub fn new(source: &'a String) -> Lexer<'a> {
+        Lexer {
             source,
             chars: source.chars(),
             line: 1,
             column: 1,
             tokens: Vec::new(),
-        };
+        }
     }
 
     pub fn lex(&mut self) {
         loop {
             let token = self.lex_token();
-            if (token.kind == TokenKind::Comment) {
-                // NOTE(ydolev): Skip comments.
-                continue;
-            }
-            if (token.kind == TokenKind::EOF) {
+            if TokenKind::EOF == token.kind {
                 // NOTE(ydolev): Reached end of file. break.
                 break;
             }
@@ -51,10 +110,10 @@ impl Lexer {
         }
     }
 
-    fn lex_token(&mut self) -> Token {
+    fn lex_token(&mut self) -> Token<'a> {
         self.eat_whitespace();
 
-        let result = Token::new();
+        let mut result = Token::new();
         result.line = self.line;
         result.column = self.column;
 
@@ -65,7 +124,7 @@ impl Lexer {
         }
 
         // NOTE(ydolev): There's still some characters to be lexed!
-        let at = self.peek_first();
+        let mut at = self.peek_first();
         let start_index = self.index();
         self.advance();
 
@@ -86,23 +145,26 @@ impl Lexer {
                 "proc" => result.kind = TokenKind::KeywordProc,
                 "if" => result.kind = TokenKind::KeywordIf,
                 "i32" => result.kind = TokenKind::KeywordI32,
-                _ => result.kind = TokenKind::Identifier,
+                _ => {
+                    result.kind = TokenKind::Identifier;
+                    result.string = source;
+                }
             }
-        } else if (at.is_numeric()) {
+        } else if at.is_numeric() {
             // NOTE(ydolev): This is a number.
-            let radix = Redix::Dec;
-            if ('0' == at) {
+            let mut radix = Radix::Dec;
+            if '0' == at {
                 at = self.peek_first();
 
                 // NOTE(ydolev): Find the number's base.
                 if ('b' == at) || ('B' == at) {
-                    radix = Redix::Bin;
+                    radix = Radix::Bin;
                     self.advance();
                 } else if ('o' == at) || ('O' == at) {
-                    radix = Redix::Oct;
+                    radix = Radix::Oct;
                     self.advance();
                 } else if ('x' == at) || ('X' == at) {
-                    radix = Redix::Hex;
+                    radix = Radix::Hex;
                     self.advance();
                 }
             }
@@ -114,16 +176,16 @@ impl Lexer {
             // the character after it is a digit, if not, than this is not
             // a floating point number.
             if ('.' == self.peek_first())
-                && (Redix::Dec == radix)
-                && self.peek_second().is_digit(Redix::Dec as u32)
+                && (Radix::Dec == radix)
+                && self.peek_second().is_digit(Radix::Dec as u32)
             {
                 self.advance();
 
                 // NOTE(ydolev): Read all floating point digits.
-                self.eat_digits(Redix::Dec as u32);
+                self.eat_digits(Radix::Dec as u32);
 
                 // NOTE(ydolev): Read all scientific notation chars.
-                if (('e' == self.peek_first()) || ('E' == self.peek_first())) {
+                if ('e' == self.peek_first()) || ('E' == self.peek_first()) {
                     self.advance();
 
                     // NOTE(ydolev): Read exponent sign.
@@ -132,19 +194,19 @@ impl Lexer {
                     }
 
                     // NOTE(ydolev): Read all exponent digits.
-                    self.eat_digits(Redix::Dec as u32);
+                    self.eat_digits(Radix::Dec as u32);
                 }
 
-                token.kind = TokenKind::Float;
+                result.kind = TokenKind::Float;
                 let source = &self.source[start_index..self.index()];
-                token.float = source.parse().unwrap_or(|err| {
+                result.float = source.parse().unwrap_or_else(|_err| {
                     // TODO(ydolev): Report error here.
-                    0
+                    0.0
                 });
             } else {
-                token.kind = TokenKind::Integer;
+                result.kind = TokenKind::Integer;
                 let source = &self.source[start_index..self.index()];
-                token.int = source.parse().unwrap_or_else(|err| {
+                result.int = source.parse().unwrap_or_else(|_err| {
                     // TODO(ydolev): Report error here.
                     0
                 });
@@ -178,7 +240,7 @@ impl Lexer {
                     if '>' == self.peek_first() {
                         self.advance();
                         result.kind = TokenKind::Arrow;
-                    } else if ('=' == self.peek_first()) {
+                    } else if '=' == self.peek_first() {
                         self.advance();
                         result.kind = TokenKind::MinusEq;
                     } else {
@@ -213,21 +275,24 @@ impl Lexer {
                         result.kind = TokenKind::Colon;
                     }
                 }
+
+                // TODO(yuval): Report error here.
+                _ => (),
             }
         }
 
         result
     }
 
-    fn peek_first(&self) -> char {
+    fn peek_first(&mut self) -> char {
         self.peek_nth(0)
     }
 
-    fn peek_second(&self) -> char {
+    fn peek_second(&mut self) -> char {
         self.peek_nth(1)
     }
 
-    fn peek_nth(&self, n: usize) -> char {
+    fn peek_nth(&mut self, n: usize) -> char {
         self.chars.nth(n).unwrap_or(EOF_CHAR)
     }
 
@@ -244,7 +309,7 @@ impl Lexer {
         self.chars.as_str().is_empty()
     }
 
-    fn eat_digits(&mut self) {
+    fn eat_digits(&mut self, radix: u32) {
         while self.peek_first().is_digit(radix) {
             self.advance();
         }
@@ -261,6 +326,6 @@ impl Lexer {
     }
 
     fn is_identifier_continue(c: char) -> bool {
-        Self::starts_identifier(c) || c.is_numeric()
+        Self::is_identifier_start(c) || c.is_numeric()
     }
 }

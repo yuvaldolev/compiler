@@ -1,5 +1,4 @@
 use clap::Clap;
-use std::error::Error;
 use std::fs;
 
 mod lexer;
@@ -11,13 +10,14 @@ pub struct Opts {
     file_name: String,
 }
 
-pub fn run(opts: Opts) -> Result<(), Box<dyn Error>> {
+pub fn run(opts: Opts) {
     // Read the entire file.
-    let source = fs::read_to_string(opts.file_name)?;
+    // TODO(yuval): Better error handling here instead of just calling 'unwrap'.
+    let source = fs::read_to_string(opts.file_name).unwrap();
 
     // Lex the file.
-    let lexer = Lexer::new(source, opts.file_name);
-    lexer.lex()?;
+    let mut lexer = Lexer::new(&source);
+    lexer.lex();
 
-    Ok(())
+    println!("Tokens: {:#?}", lexer.tokens);
 }
