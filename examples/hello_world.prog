@@ -1,6 +1,4 @@
-#import "LibC"
-
 main :: proc() {
-	printf("Hello World!\n");
+	x: i32 = 5;
 }
 
