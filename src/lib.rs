@@ -15,9 +15,16 @@ pub fn run(opts: Opts) {
     // TODO(yuval): Better error handling here instead of just calling 'unwrap'.
     let source = fs::read_to_string(opts.file_name).unwrap();
 
-    // Lex the file.
+    // Lex the program.
     let mut lexer = Lexer::new(&source);
     lexer.lex();
+
+    // Create the global scope.
+    let mut global_scope = AstScope::new();
+
+    // Parse the program.
+    let mut parser = Parser::new(&lexer);
+    parser.parse_scope(&mut global_scope);
 
     println!("Tokens: {:#?}", lexer.tokens);
 }
