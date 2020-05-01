@@ -1,8 +1,13 @@
 use clap::Clap;
 use std::fs;
 
+mod ast;
+
 mod lexer;
 use lexer::Lexer;
+
+mod parser;
+use parser::Parser;
 
 #[derive(Clap)]
 #[clap(version = "1.0", author = "ydolev")]
@@ -20,7 +25,7 @@ pub fn run(opts: Opts) {
     lexer.lex();
 
     // Create the global scope.
-    let mut global_scope = AstScope::new();
+    let mut global_scope = ast::Scope::new();
 
     // Parse the program.
     let mut parser = Parser::new(&lexer);

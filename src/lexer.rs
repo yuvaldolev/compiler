@@ -1,42 +1,5 @@
 use std::str::Chars;
 
-pub struct Lexer<'a> {
-    source: &'a String,
-    chars: Chars<'a>,
-
-    line: usize,
-    column: usize,
-
-    pub tokens: Vec<Token<'a>>,
-}
-
-#[derive(Debug)]
-pub struct Token<'a> {
-    kind: TokenKind,
-
-    // Location data.
-    line: usize,
-    column: usize,
-
-    // Value (this might be better implemented using the kind Enum).
-    string: &'a str,
-    int: u64,
-    float: f64,
-}
-
-impl<'a> Token<'a> {
-    fn new() -> Token<'a> {
-        return Token {
-            kind: TokenKind::Uninitialized,
-            line: 0,
-            column: 0,
-            string: "",
-            int: 0,
-            float: 0.0,
-        };
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
     // NOTE(ydolev): Operators.
@@ -64,19 +27,19 @@ pub enum TokenKind {
     ColonColon,
 
     // NOTE(ydolev): Numbers.
-    Integer,
-    Float,
+    Integer(u64),
+    Float(f64),
 
     // NOTE(ydolev): Keywords.
     KeywordProc,
     KeywordIf,
     KeywordI32,
 
-    Identifier,
+    Identifier(String),
 
-    EOF,
+    End,
 
-    Uninitialized,
+    Nil,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -85,6 +48,27 @@ enum Radix {
     Oct = 8,
     Dec = 10,
     Hex = 16,
+}
+
+pub struct Lexer<'a> {
+    source: &'a String,
+    chars: Chars<'a>,
+
+    line: usize,
+    column: usize,
+
+    pub tokens: Vec<Token>,
+}
+
+#[derive(Debug)]
+pub struct Token {
+    // NOTE(ydolev): This contains both the token kind,
+    // and extra data for specific token kinds.
+    kind: TokenKind,
+
+    // NOTE(ydolev): Location data.
+    line: usize,
+    column: usize,
 }
 
 const EOF_CHAR: char = '\0';
@@ -103,16 +87,16 @@ impl<'a> Lexer<'a> {
     pub fn lex(&mut self) {
         loop {
             let token = self.lex_token();
-            if TokenKind::EOF == token.kind {
+            self.tokens.push(token);
+
+            if TokenKind::End == token.kind {
                 // NOTE(ydolev): Reached end of file. break.
                 break;
             }
-
-            self.tokens.push(token);
         }
     }
 
-    fn lex_token(&mut self) -> Token<'a> {
+    fn lex_token(&mut self) -> Token {
         self.eat_whitespace();
 
         let mut result = Token::new();
@@ -121,7 +105,7 @@ impl<'a> Lexer<'a> {
 
         if self.is_eof() {
             // NOTE(ydolev): Reached EOF.
-            result.kind = TokenKind::EOF;
+            result.kind = TokenKind::End;
             return result;
         }
 
@@ -148,8 +132,7 @@ impl<'a> Lexer<'a> {
                 "if" => result.kind = TokenKind::KeywordIf,
                 "i32" => result.kind = TokenKind::KeywordI32,
                 _ => {
-                    result.kind = TokenKind::Identifier;
-                    result.string = source;
+                    result.kind = TokenKind::Identifier(source.to_owned());
                 }
             }
         } else if at.is_numeric() {
@@ -199,19 +182,19 @@ impl<'a> Lexer<'a> {
                     self.eat_digits(Radix::Dec as u32);
                 }
 
-                result.kind = TokenKind::Float;
                 let source = &self.source[start_index..self.index()];
-                result.float = source.parse().unwrap_or_else(|_err| {
+                let value = source.parse().unwrap_or_else(|_err| {
                     // TODO(ydolev): Report error here.
                     0.0
                 });
+                result.kind = TokenKind::Float(value);
             } else {
-                result.kind = TokenKind::Integer;
                 let source = &self.source[start_index..self.index()];
-                result.int = source.parse().unwrap_or_else(|_err| {
+                let value = source.parse().unwrap_or_else(|_err| {
                     // TODO(ydolev): Report error here.
                     0
                 });
+                result.kind = TokenKind::Integer(value);
             }
         } else {
             match at {
@@ -342,5 +325,15 @@ impl<'a> Lexer<'a> {
 
     fn is_identifier_continue(c: char) -> bool {
         Self::is_identifier_start(c) || c.is_numeric()
+    }
+}
+
+impl Token {
+    fn new() -> Token {
+        return Token {
+            kind: TokenKind::Nil,
+            line: 0,
+            column: 0,
+        };
     }
 }
